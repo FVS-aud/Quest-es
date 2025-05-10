@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Questões</title>
+    <link rel="stylesheet" href="style.css">
+
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <img src="images/logo.png" alt="Logo" id="logo"> <h1>Plataforma de Questões</h1>
+        </div>
+        <nav id="user-nav">
+            </nav>
+    </header>
+
+<main>
+    <aside class="sidebar">
+        <nav id="main-lateral-nav">
+            <ul>
+                <li>
+                    <button class="main-nav-item active-nav-item" id="nav-item-questions">
+                        <i class="fas fa-list-alt"></i> Questões
+                    </button>
+                </li>
+                <li>
+                    <button class="main-nav-item" id="nav-item-stats">
+                        <i class="fas fa-chart-bar"></i> Estatísticas
+                    </button>
+                </li>
+                <li>
+                    <button class="main-nav-item" id="nav-item-notebooks">
+                        <i class="fas fa-book"></i> Cadernos
+                    </button>
+                </li>
+                <li>
+                    <button class="main-nav-item" id="nav-item-favorites">
+                        <i class="fas fa-star"></i> Favoritas
+                    </button>
+                </li>
+            </ul>
+        </nav>
+
+        <hr class="sidebar-divider"> <h2>Filtros</h2>
+        <div id="category-filters">
+             <ul id="materias-list-container"> <li data-subject="" class="filter-all-materias">Todas as Matérias</li>
+            </ul>
+        </div>
+
+        <div id="notebook-section">
+            <button id="create-notebook-btn">Novo Caderno</button>
+            <div id="my-notebooks-container" class="collapsible-section">
+                <h3 class="collapsible-header-sidebar" data-target="notebooks-list">Meus Cadernos (Lista) <span class="collapse-icon-sidebar">+</span></h3>
+                <ul id="notebooks-list" class="list-collapsed">
+                    </ul>
+            </div>
+        </div>
+
+        <div id="my-favorites-section" class="collapsible-section">
+            <h3 class="collapsible-header-sidebar" data-target="favorites-list-menu-ul">Opções de Favoritas <span class="collapse-icon-sidebar">+</span></h3>
+            <div id="favorites-list-menu-ul" class="list-collapsed">
+                <ul id="favorites-list-menu">
+                     <li><small>Use o menu "Favoritas" acima para ver a lista completa e grupos.</small></li>
+                     </ul>
+            </div>
+        </div>
+
+        <div class="collapsible-section">
+            <h3 class="collapsible-header-sidebar" data-target="shortcuts-list-ul">Atalhos <span class="collapse-icon-sidebar">+</span></h3>
+            <div id="shortcuts-list-ul" class="list-collapsed">
+                <ul id="shortcuts-list">
+                    <li><strong>A-E / 1-5:</strong> Selecionar alternativa</li>
+                    <li><strong>C / E:</strong> Selecionar Certo/Errado</li>
+                    <li><strong>Enter:</strong> Confirmar Resposta</li>
+                    <li><strong>Espaço:</strong> Próxima Questão</li>
+                    <li><strong>Backspace:</strong> Questão Anterior</li>
+                    <li><strong>F:</strong> Favoritar Questão</li>
+                    <li><strong>Duplo Clique na Alternativa:</strong> Taxar/Riscar</li>
+                </ul>
+            </div>
+        </div>
+    </aside>
+
+    <section class="content">
+        <div id="auth-container" class="auth-view">
+            <h2>Acessar Plataforma</h2>
+            <div id="login-form">
+                <h3>Login</h3>
+                <input type="email" id="login-email" placeholder="Email" required>
+                <input type="password" id="login-password" placeholder="Senha" required>
+                <button id="login-btn">Entrar</button>
+            </div>
+            <div id="signup-form">
+                <h3>Criar Conta</h3>
+                <input type="email" id="signup-email" placeholder="Email" required>
+                <input type="password" id="signup-password" placeholder="Senha" required>
+                <input type="text" id="signup-name" placeholder="Nome de Exibição" required>
+                <button id="signup-btn">Registrar</button>
+            </div>
+            <p id="auth-error" class="error-message"></p>
+        </div>
+
+        <div id="question-view" class="hidden">
+            <div class="question-header">
+                <p id="breadcrumb">Questões > Todas</p>
+                <p>Questão <span id="current-question-number">1</span> de <span id="total-questions">10</span></p>
+                <div>
+                    </div>
+            </div>
+            <div id="question-container">
+                </div>
+            <div id="question-actions-bar">
+                <button id="prev-question-btn">Anterior</button>
+                <button id="next-question-btn">Próxima</button>
+                <button id="favorite-btn">Favoritar ☆</button>
+                <button id="add-to-notebook-btn" class="hidden">Adicionar ao Caderno</button>
+                <button id="submit-answer-btn">Responder</button>
+            </div>
+            <div id="feedback-container"></div>
+            <div id="question-forum-btn-container">
+                <button id="toggle-forum-btn">Comentários da Questão</button>
+            </div>
+            </div>
+
+        <div id="favorites-listing-view" class="hidden">
+            <h2>Minhas Questões Favoritas</h2>
+            <p id="favorites-breadcrumb">Questões > Favoritas</p>
+            <div id="favorites-filters-container">
+                <h3>Filtrar Favoritas</h3>
+                <button id="toggle-favorites-filter-btn">Mostrar/Esconder Filtros</button>
+                <div id="favorites-filter-controls" class="hidden">
+                    <label for="fav-filter-disciplina">Disciplina:</label> <input type="text" id="fav-filter-disciplina" placeholder="Ex: Direito Penal">
+                    <label for="fav-filter-assunto">Assunto:</label> <input type="text" id="fav-filter-assunto" placeholder="Ex: Crimes contra a vida">
+                    <label for="fav-filter-banca">Banca:</label> <input type="text" id="fav-filter-banca" placeholder="Ex: FCC">
+                    <label for="fav-filter-data">Data de Marcação:</label> <input type="date" id="fav-filter-data">
+                    <button id="apply-favorites-filters-btn">Aplicar Filtros</button> <button id="clear-favorites-filters-btn">Limpar Filtros</button>
+                </div>
+            </div>
+            <div id="favorite-groups-container">
+                <h3>Grupos de Favoritas</h3>
+                <button id="create-favorite-group-btn">NOVO GRUPO DE FAVORITAS</button>
+                <ul id="favorite-groups-list"></ul>
+            </div>
+            <div id="favorites-listing-container">
+                </div>
+        </div>
+
+        <div id="forum-view" class="hidden">
+            </div>
+
+        <div id="stats-view" class="hidden">
+            </div>
+
+        <div id="notebooks-view" class="hidden"> <h2>Meus Cadernos</h2>
+            <p>Visão geral dos seus cadernos. Selecione um na lista da sidebar para ver as questões, ou crie um novo.</p>
+            <div id="notebooks-main-placeholder">
+                </div>
+        </div>
+
+        <div id="add-question-view" class="hidden">
+            </div>
+    </section>
+</main>
+
+    <footer>
+        <p>&copy; 2025 Sua Plataforma de Questões. Todos os direitos reservados.</p>
+        <button id="show-stats-btn">Desempenho</button>
+        <button id="show-add-question-btn">Adicionar Questão</button>
+    </footer>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>

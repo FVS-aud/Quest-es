@@ -1,0 +1,832 @@
+/* Reset básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #f4f7f6; /* Cor de fundo suave */
+    color: #333;
+}
+
+header {
+    background-color: #fff;
+    color: #4A7199;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+}
+
+#logo {
+    height: 72px;
+    margin-right: 15px;
+}
+
+header h1 {
+    font-size: 1.8em;
+}
+
+#user-nav button {
+    background-color: #5D87B0;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    margin-left: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+#user-nav button:hover {
+    background-color: #4A7199;
+}
+
+main {
+    display: flex;
+    flex-grow: 1;
+    padding: 20px;
+}
+
+.sidebar {
+    width: 280px;
+    background-color: #fff;
+    padding: 20px;
+    border-right: 1px solid #ddd;
+    box-shadow: 1px 0 3px rgba(0,0,0,0.05);
+    margin-right: 20px;
+}
+
+.sidebar h2, .sidebar h3 {
+    color: #4A7199;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+.sidebar h2:first-child, .sidebar h3:first-child {
+    margin-top: 0;
+}
+
+/* --- ESTILOS DA SIDEBAR PARA MATÉRIAS E ASSUNTOS --- */
+#category-filters ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+/* Item "Todas as Matérias" */
+.filter-all-materias {
+    padding: 8px 5px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 0.9em; /* Fonte para "Todas as Matérias" */
+}
+.filter-all-materias:hover {
+    background-color: #e9eff5;
+}
+
+
+.materia-item { /* Contêiner para uma matéria e seus assuntos */
+    margin-bottom: 5px;
+}
+
+.materia-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 5px; /* Ajuste o padding */
+    cursor: pointer;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 0.9em; /* FONTE MENOR PARA MATÉRIA */
+}
+.materia-header:hover {
+    background-color: #e9eff5;
+}
+
+.collapse-icon-materia {
+    font-weight: normal; /* Para não ficar negrito duplo */
+    margin-left: 8px;
+    font-size: 0.8em; /* Ícone um pouco menor */
+}
+
+.assuntos-sublist {
+    list-style: none;
+    padding-left: 15px; /* Indentação dos assuntos */
+    margin-top: 3px;
+}
+
+.assuntos-sublist li {
+    padding: 5px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 0.85em; /* FONTE MENOR PARA ASSUNTO */
+    color: #333; /* Cor do texto do assunto */
+}
+.assuntos-sublist li:hover {
+    background-color: #dde4eb;
+}
+/* --- FIM DOS ESTILOS DE MATÉRIAS E ASSUNTOS --- */
+
+
+/* Estilos para a seção de Cadernos */
+#notebook-section {
+    margin-top: 20px;
+}
+
+#create-notebook-btn {
+    background-color: #5D87B0;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.95em;
+    margin-bottom: 15px;
+}
+#create-notebook-btn:hover {
+    background-color: #4A7199;
+}
+
+#notebooks-list {
+    list-style: none;
+    padding-left: 0;
+}
+#notebooks-list li {
+    padding: 8px 5px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    font-size: 0.9em; /* Fonte para itens de caderno */
+}
+#notebooks-list li:hover {
+    background-color: #e9eff5;
+}
+#notebooks-list li.active-notebook { /* Estilo para caderno ativo */
+    background-color: #d1e0ee;
+    font-weight: bold;
+}
+
+
+#my-favorites-section, #shortcuts-list {
+    margin-top: 20px;
+}
+#favorites-list-menu, #shortcuts-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+#favorites-list-menu li {
+    padding: 8px 5px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+#favorites-list-menu li:hover {
+    background-color: #e9eff5;
+}
+
+#shortcuts-list li {
+    font-size: 0.85em;
+    padding: 4px 0;
+    color: #555;
+}
+#shortcuts-list strong {
+    color: #333;
+}
+
+
+.content {
+    flex-grow: 1;
+    background-color: #fff;
+    padding: 25px;
+    border-radius: 5px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+}
+
+/* Estilos para Autenticação */
+.auth-view {
+    max-width: 400px;
+    margin: 40px auto;
+    padding: 25px;
+    background-color: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+.auth-view h2, .auth-view h3 {
+    text-align: center;
+    color: #4A7199;
+    margin-bottom: 20px;
+}
+.auth-view input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.auth-view button {
+    width: 100%;
+    padding: 12px;
+    background-color: #5D87B0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+}
+.auth-view button:hover {
+    background-color: #4A7199;
+}
+#login-form { margin-bottom: 25px; }
+.error-message {
+    color: red;
+    font-size: 0.9em;
+    text-align: center;
+    margin-top: 10px;
+}
+
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+#breadcrumb {
+    font-size: 0.9em;
+    color: #777;
+}
+
+.question-header p {
+    font-size: 0.95em;
+    color: #555;
+}
+
+.question-header button {
+    background-color: #e7eaf1;
+    border: 1px solid #d1d8e0;
+    color: #4A7199;
+    padding: 8px 12px;
+    margin-left: 8px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.question-header button:hover {
+    background-color: #d1d8e0;
+}
+#favorite-btn.favorited {
+    background-color: #ffd700;
+    color: #333;
+}
+#add-to-notebook-btn { /* Estilo para o novo botão */
+    background-color: #6fbf73; /* Um verde diferente */
+}
+#add-to-notebook-btn:hover {
+    background-color: #5e9f62;
+}
+
+
+#question-container {
+    margin-bottom: 25px;
+    line-height: 1.6;
+}
+
+.question-statement {
+    font-size: 1.1em;
+    margin-bottom: 20px;
+    font-weight: bold;
+    color: #333;
+}
+.question-info {
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 15px;
+    padding: 8px;
+    background-color: #f9f9f9;
+    border-left: 3px solid #5D87B0;
+}
+.question-info span.filter-trigger {
+    cursor: pointer;
+    text-decoration: underline;
+    color: #4A7199;
+}
+.question-info span.filter-trigger:hover {
+    color: #3A5A7A;
+}
+
+.options-list {
+    list-style: none;
+    padding: 0;
+}
+
+.options-list li {
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.options-list li:hover {
+    background-color: #f0f4f8;
+}
+
+.options-list li.selected {
+    background-color: #d6e4f0;
+    border-color: #a7c4dd;
+}
+.options-list li.taxed {
+    text-decoration: line-through;
+    color: #aaa;
+    background-color: #f8f8f8;
+}
+
+.option-letter {
+    font-weight: bold;
+    margin-right: 10px;
+    padding: 5px 9px;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    min-width: 30px;
+    text-align: center;
+    background-color: #fff;
+}
+
+.options-list li.correct {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+.options-list li.correct .option-letter {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.options-list li.incorrect {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+.options-list li.incorrect.selected .option-letter {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+
+#submit-answer-btn {
+    display: block;
+    width: auto;
+    padding: 12px 25px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.1em;
+    margin: 20px 0;
+}
+
+#submit-answer-btn:hover {
+    background-color: #218838;
+}
+#submit-answer-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+#feedback-container {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 4px;
+}
+#feedback-container.correct-feedback {
+    background-color: #e6ffed;
+    border: 1px solid #b8f2c9;
+}
+#feedback-container.incorrect-feedback {
+    background-color: #ffe6e6;
+    border: 1px solid #f2b8b8;
+}
+.feedback-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+}
+.feedback-title.correct { color: #1c7430; }
+.feedback-title.incorrect { color: #a91e2c; }
+
+.justification-text {
+    margin-top: 10px;
+    line-height: 1.5;
+    font-size: 0.95em;
+}
+
+footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 15px;
+    margin-top: auto;
+}
+footer button {
+    margin: 0 10px;
+    padding: 8px 15px;
+    background-color: #555;
+    color: white;
+    border: 1px solid #777;
+    cursor: pointer;
+}
+footer button:hover {
+    background-color: #777;
+}
+
+/* Aba de adicionar questão */
+#add-question-view label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+#add-question-view input[type="text"],
+#add-question-view textarea,
+#add-question-view select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+#add-question-view textarea {
+    min-height: 80px;
+}
+#add-q-options-mc input { margin-bottom: 5px; }
+
+/* Forum View */
+#forum-view {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+#forum-view h3 {
+    color: #4A7199;
+    margin-bottom: 15px;
+}
+.forum-comment {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 10px 0;
+    margin-bottom: 10px;
+}
+.comment-author {
+    font-weight: bold;
+    color: #5D87B0;
+    font-size: 0.9em;
+}
+.comment-text {
+    font-size: 1em;
+    margin-top: 5px;
+}
+.comment-date {
+    font-size: 0.8em;
+    color: #888;
+    display: block;
+    text-align: right;
+}
+#new-comment-text {
+    width: 100%;
+    min-height: 70px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    margin-bottom: 10px;
+}
+#submit-comment-btn,
+#toggle-forum-btn,
+#question-forum-btn-container button {
+    background-color: #5D87B0;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+#submit-comment-btn:hover,
+#toggle-forum-btn:hover,
+#question-forum-btn-container button:hover {
+    background-color: #4A7199;
+}
+
+
+/* Canvas para gráficos */
+#stats-view canvas {
+    max-width: 100%; /* Para ser responsivo dentro do seu contêiner */
+    /* max-height: 300px; Opcional: limitar altura */
+    margin: 10px auto; /* Centraliza o canvas */
+}
+#stats-comparison-container h3 { /* Títulos dos gráficos de comparação */
+    text-align: center;
+    font-size: 1em;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+
+.hidden {
+    display: none !important;
+}
+
+#favorites-list-menu li {
+    padding: 8px 5px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-bottom: 5px;
+}
+
+#favorites-list-menu li:hover {
+    background-color: #e9eff5;
+}
+
+#back-to-questions-from-stats-btn {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: block;
+    width: fit-content;
+    margin: 0 auto 20px auto;
+}
+
+#back-to-questions-from-stats-btn:hover {
+    background-color: #5a6268;
+}
+
+.collapsible-header { /* Este já existia, pode ser removido se não usar explicitamente */
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.list-collapsed {
+    display: none !important;
+}
+
+.favorites-listing-ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+.favorite-item-li {
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 15px 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+
+.favorite-item-statement {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.favorite-item-meta {
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 12px;
+}
+
+.view-single-favorite-btn {
+    background-color: #5D87B0;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    font-size: 0.95em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.view-single-favorite-btn:hover {
+    background-color: #4A7199;
+}
+/* === ADIÇÕES PARA NOVAS FUNCIONALIDADES === */
+
+/* --- Estilos para Seções Colapsáveis na Sidebar --- */
+.collapsible-section {
+    margin-top: 15px; /* Espaçamento padrão entre seções colapsáveis */
+}
+
+/* Ajusta o h3 que agora é um cabeçalho clicável */
+.sidebar h3.collapsible-header-sidebar {
+    color: #4A7199;
+    margin-top: 15px; /* Mantém a margem superior para o título da seção */
+    margin-bottom: 0;  /* Remove margem inferior, pois a lista colapsável controla o espaço */
+    border-bottom: 1px solid #eee; /* Mantém a linha abaixo do título */
+    padding-bottom: 5px; /* Mantém o padding abaixo do título */
+    cursor: pointer; /* Indica que é clicável */
+    display: flex; /* Para alinhar texto e ícone */
+    justify-content: space-between; /* Ícone vai para a direita */
+    align-items: center; /* Alinhamento vertical */
+    user-select: none; /* Impede seleção de texto ao clicar */
+}
+.sidebar h3.collapsible-header-sidebar:hover {
+    background-color: #f4f7f6; /* Leve destaque no hover */
+}
+.sidebar h3.collapsible-header-sidebar:first-child {
+     margin-top: 0; /* O primeiro h3 colapsável pode não precisar de margem superior */
+}
+
+
+.collapse-icon-sidebar {
+    font-weight: bold; /* Torna o '+' ou '-' mais visível */
+    margin-left: 8px; /* Espaço entre o texto do título e o ícone */
+    transition: transform 0.2s ease-in-out; /* Animação suave para o ícone */
+    font-size: 0.9em; /* Tamanho do ícone */
+}
+
+.collapsible-header-sidebar.expanded .collapse-icon-sidebar {
+    transform: rotate(45deg); /* Gira o '+' para parecer um 'x' quando expandido */
+}
+
+/* A classe .list-collapsed já existe no seu CSS, apenas garantindo que está como esperado: */
+/* .list-collapsed { display: none !important; } */
+/* O conteúdo dentro do div/ul colapsável deve ter sua própria margem superior se necessário */
+#notebooks-list.list-collapsed,
+#favorites-list-menu-ul.list-collapsed,
+#shortcuts-list-ul.list-collapsed {
+    /* Não precisa de regra aqui se .list-collapsed já tem display: none !important; */
+}
+#notebooks-list,
+#favorites-list-menu-ul,
+#shortcuts-list-ul {
+    margin-top: 5px; /* Pequena margem acima da lista quando visível */
+}
+
+
+/* --- Estilos para Excluir Caderno --- */
+/* Modifica o estilo do LI do caderno para acomodar o botão de exclusão */
+#notebooks-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* Seu padding: 8px 5px; cursor: pointer; etc., são mantidos */
+}
+
+.notebook-name { /* Crie um <span> com esta classe para o nome do caderno no JS */
+    flex-grow: 1; /* Permite que o nome ocupe o espaço restante */
+    cursor: pointer; /* Mantém o nome clicável para carregar o caderno */
+}
+
+.delete-notebook-btn {
+    background-color: #e74c3c; /* Vermelho */
+    color: white;
+    border: none;
+    padding: 3px 7px;
+    font-size: 0.75em; /* Pequeno */
+    border-radius: 3px;
+    cursor: pointer;
+    margin-left: 8px; /* Espaço do nome */
+    line-height: 1; /* Ajuste para alinhamento vertical se necessário */
+}
+.delete-notebook-btn:hover {
+    background-color: #c0392b; /* Vermelho escuro */
+}
+
+/* --- Estilos para View de Listagem de Favoritas (se adicionou o HTML) --- */
+#favorites-listing-view {
+    padding: 15px; /* Adiciona algum padding interno */
+}
+#favorites-listing-container ul {
+    list-style: none;
+    padding: 0;
+}
+#favorites-listing-container li.favorite-item-li { /* Reutilizando sua classe existente se aplicável */
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 15px 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+/* ... (seus estilos .favorite-item-statement, .favorite-item-meta, .view-single-favorite-btn já existem e devem funcionar aqui) ... */
+
+/* Garante que o botão de voltar na lista de favoritas tenha um estilo */
+#back-to-questions-from-favorites-btn {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+#back-to-questions-from-favorites-btn:hover {
+    background-color: #5a6268;
+}
+/* No public/style.css */
+
+#main-lateral-nav {
+    margin-bottom: 15px; /* Espaço antes dos próximos elementos da sidebar */
+}
+
+#main-lateral-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#main-lateral-nav li {
+    margin-bottom: 8px; /* Espaço entre os itens do menu */
+}
+
+.main-nav-item {
+    display: flex; /* Para alinhar ícone e texto */
+    align-items: center;
+    width: 100%;
+    padding: 12px 15px; /* Padding generoso para clique */
+    background-color: #f0f2f5; /* Cor de fundo para itens inativos (similar à Imagem 2) */
+    color: #333; /* Cor do texto para itens inativos */
+    border: 2px solid transparent; /* Borda para o estado ativo */
+    border-radius: 8px; /* Bordas arredondadas */
+    text-align: left;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+.main-nav-item i { /* Estilo para os ícones */
+    margin-right: 12px; /* Espaço entre ícone e texto */
+    font-size: 1.1em;
+    width: 20px; /* Largura fixa para alinhar texto mesmo sem ícone */
+    text-align: center;
+    color: #5D87B0; /* Cor para os ícones */
+}
+
+.main-nav-item:hover {
+    background-color: #e4e8ed; /* Cor de hover sutil */
+    color: #000;
+}
+
+.main-nav-item.active-nav-item {
+    background-color: #D1E0EE; /* Cor de fundo para item ativo (um azul claro, como na sidebar) */
+    color: #4A7199; /* Cor do texto para item ativo (azul escuro) */
+    font-weight: bold;
+    border-left: 5px solid #4A7199; /* Destaque lateral para o item ativo */
+    /* Ou se quiser uma borda completa como na Imagem 2, mas vertical:
+    border: 2px solid #4A7199;
+    */
+}
+
+.main-nav-item.active-nav-item i {
+    color: #4A7199; /* Ícone também com a cor de destaque */
+}
+
+.sidebar-divider {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    border: 0;
+    border-top: 1px solid #ddd;
+}
+
+/* Ajustes na .sidebar se necessário para acomodar melhor o novo menu */
+.sidebar {
+    width: 280px; /* Manteve a largura original */
+    background-color: #fff; /* Fundo da sidebar */
+    padding: 20px; /* Padding original */
+    /* ... outros estilos da .sidebar ... */
+}
