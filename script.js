@@ -89,10 +89,9 @@ const statsComparisonContainerEl = document.getElementById('stats-comparison-con
 const tabButtons = document.querySelectorAll('.main-tab-btn');
 const contentViews = { // Mapeia o ID do botão da aba para o ID da view de conteúdo
     'tab-questions': document.getElementById('question-view'),
-    'tab-stats': document.getElementById('stats-view'),
-    'tab-notebooks': document.getElementById('notebooks-view'), // Crie esta div no HTML se necessário
+    'tab-stats-header': document.getElementById('stats-view'), // << ATUALIZADO
+    'tab-notebooks': document.getElementById('notebooks-view'),
     'tab-favorites': document.getElementById('favorites-listing-view')
-    // 'tab-home': document.getElementById('home-view') // Se tiver uma home view separada
 };
 const questionViewEl = document.getElementById('question-view'); // Adicionado para consistência se usado em displayFavoriteQuestions
 const statsViewEl = document.getElementById('stats-view'); // Adicionado para consistência
@@ -157,8 +156,6 @@ let geralChartInstance = null;
 let globalCompareChartInstance = null;
 let dificuldadeChartInstance = null;
 
-
-
 // --- AUTENTICAÇÃO ---
 console.log("script.js: Configurando observador auth.onAuthStateChanged.");
 auth.onAuthStateChanged(user => {
@@ -175,8 +172,6 @@ auth.onAuthStateChanged(user => {
             userNav.innerHTML = `
                 <span>Olá, ${user.displayName || user.email}</span>
                 <button id="logout-btn">Sair</button>
-                <button id="my-stats-btn">Minhas Estatísticas</button>
-                <button id="global-stats-btn">Estatísticas Globais (Plataforma)</button>
             `;
             const logoutBtn = document.getElementById('logout-btn');
             if (logoutBtn) {
@@ -188,25 +183,6 @@ auth.onAuthStateChanged(user => {
                 console.error("script.js: logoutBtn não encontrado após userNav.innerHTML!");
             }
 
-            const myStatsBtn = document.getElementById('my-stats-btn');
-            if (myStatsBtn) {
-                 myStatsBtn.addEventListener('click', () => {
-                     console.log("script.js: Botão Minhas Estatísticas CLICADO!");
-                     showStatsView('general');
-                 });
-            }  else {
-                console.error("script.js: my-stats-btn não encontrado!");
-            }
-
-            const globalStatsBtnEl = document.getElementById('global-stats-btn');
-            if (globalStatsBtnEl) {
-                 globalStatsBtnEl.addEventListener('click', () => {
-                     console.log("script.js: Botão Estatísticas Globais CLICADO!");
-                     showGlobalPlatformStatsView();
-                 });
-            }  else {
-                console.error("script.js: global-stats-btn não encontrado!");
-            }
         } else {
             console.error("script.js: userNav não encontrado para atualizar UI de usuário logado!");
         }
@@ -259,9 +235,6 @@ tabButtons.forEach(button => {
         switch (button.id) {
             case 'tab-questions':
                 console.log("Aba Questões clicada.");
-                // Se não estiver voltando de um caderno/favorita para a lista geral,
-                // pode ser necessário resetar filtros e recarregar.
-                // Se currentViewingContext já for 'general' ou 'filter', fetchQuestions() pode ser suficiente.
                 if (currentViewingContext.type !== 'filter' && currentViewingContext.type !== 'general') {
                     currentFilters = { subject: null, topic: null };
                     currentViewingContext = { type: 'general', id: null, name: 'Todas as Questões' };
@@ -270,13 +243,14 @@ tabButtons.forEach(button => {
                 }
                 fetchQuestions(); // Carrega questões (gerais ou com filtros atuais)
                 break;
-            case 'tab-stats':
-                console.log("Aba Estatísticas clicada.");
-                // Garante que o seletor de contexto de estatísticas esteja visível e padrão
-                if(statsContextTypeSelect) {
-                    statsContextTypeSelect.value = 'general'; // Volta para o contexto geral por padrão
+            case 'tab-stats-header': // << ID ATUALIZADO
+                console.log("Aba Estatísticas (Header) clicada.");
+                if (statsContextTypeSelect) {
+                    statsContextTypeSelect.value = 'general'; // Default
                 }
-                showStatsView('general'); // Mostra estatísticas gerais por padrão
+                const statsSubmenu = document.getElementById('stats-main-submenu');
+                if (!statsSubmenu.classList.contains('expanded')) {
+                }
                 break;
             case 'tab-notebooks':
                 console.log("Aba Cadernos clicada.");
@@ -2114,6 +2088,76 @@ function setupSidebarCollapsibles() {
     }
 }
 
+function setupMainNavCollapsibles() {
+    const headers = document.querySelectorAll('.collapsible-main-nav-header > button.main-nav-item');
+    headers.forEach(header => {
+        if (!header.dataset.mainNavCollapsibleInitialized) {
+            header.addEventListener('click', function(event) {
+                // Este listener é para o colapso do submenu.
+                // A navegação da aba principal (mostrar view, setar ativa) ainda será tratada
+                // pelo listener de 'tabButtons' se o ID do header estiver lá.
+                // Ou, se o header NÃO deve trocar de view, apenas abrir submenu, precisamos de cuidado.
+
+                const targetSubmenuId = this.dataset.targetSubmenu;
+                const submenu = document.getElementById(targetSubmenuId);
+                const icon = this.querySelector('.collapse-icon-nav');
+
+                if (submenu) {
+                    const isExpanded = submenu.classList.toggle('expanded');
+                    this.classList.toggle('submenu-expanded', isExpanded);
+                    if (icon) {
+                        icon.textContent = isExpanded ? '-' : '+';
+                    }
+                    // Não propague se for apenas para abrir/fechar submenu e não trocar de view principal
+                    // event.stopPropagation(); // Descomente se o clique no header não deve mudar a view
+                }
+            });
+            header.dataset.mainNavCollapsibleInitialized = 'true';
+        }
+    });
+
+    const myStatsSubmenuBtn = document.getElementById('nav-item-my-stats');
+    if (myStatsSubmenuBtn) {
+        myStatsSubmenuBtn.addEventListener('click', () => {
+            if (!currentUser) { alert("Por favor, faça login."); return; }
+            console.log("Botão Minhas Estatísticas (submenu) CLICADO!");
+            const statsHeaderButton = document.getElementById('tab-stats-header'); // Botão principal da aba
+            showMainContentView(contentViews[statsHeaderButton.id]);
+            setActiveTab(statsHeaderButton);
+            showStatsView('general');
+            closeOtherSubmenus('stats-main-submenu', headers); // Passa a lista de headers
+        });
+    }
+
+    const globalStatsSubmenuBtn = document.getElementById('nav-item-global-stats');
+    if (globalStatsSubmenuBtn) {
+        globalStatsSubmenuBtn.addEventListener('click', () => {
+            if (!currentUser) { alert("Por favor, faça login."); return; }
+            console.log("Botão Estatísticas Globais (submenu) CLICADO!");
+            const statsHeaderButton = document.getElementById('tab-stats-header'); // Botão principal da aba
+            showMainContentView(contentViews[statsHeaderButton.id]);
+            setActiveTab(statsHeaderButton);
+            showGlobalPlatformStatsView();
+            closeOtherSubmenus('stats-main-submenu', headers); // Passa a lista de headers
+        });
+    }
+}
+
+function closeOtherSubmenus(currentSubmenuId, allHeaderButtons) {
+    allHeaderButtons.forEach(header => {
+        const targetId = header.dataset.targetSubmenu;
+        if (targetId && targetId !== currentSubmenuId) {
+            const submenu = document.getElementById(targetId);
+            const icon = header.querySelector('.collapse-icon-nav');
+            if (submenu && submenu.classList.contains('expanded')) {
+                submenu.classList.remove('expanded');
+                header.classList.remove('submenu-expanded');
+                if (icon) icon.textContent = '+';
+            }
+        }
+    });
+}
+
 // Chamar a função após o DOM estar pronto ou quando a sidebar for populada.
 // Se a sidebar é estática e sempre presente, pode chamar aqui.
 // Se ela é gerada dinamicamente após o login, chame dentro de onAuthStateChanged ou loadInitialUserData.
@@ -2130,9 +2174,13 @@ function setupSidebarCollapsibles() {
 // });
 // Por enquanto, vamos adicionar uma chamada no final do script para tentar inicializar:
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupSidebarCollapsibles);
+    document.addEventListener('DOMContentLoaded', () => {
+        setupSidebarCollapsibles();
+        setupMainNavCollapsibles(); // << ADICIONAR CHAMADA
+    });
 } else {
     setupSidebarCollapsibles();
+    setupMainNavCollapsibles(); // << ADICIONAR CHAMADA
 }
 
 console.log("script.js: Fim do arquivo de script alcançado e processado.");
