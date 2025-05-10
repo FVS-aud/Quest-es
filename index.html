@@ -29,10 +29,11 @@
                         <i class="fas fa-list-alt"></i> Questões
                     </button>
                 </li>
-                <li>
-                    <button class="main-nav-item" id="nav-item-stats">
-                        <i class="fas fa-chart-bar"></i> Estatísticas
-                    </button>
+                <li class="collapsible-main-nav-header"> <button class="main-nav-item" id="tab-stats-header" data-target-submenu="stats-main-submenu"> <i class="fas fa-chart-bar"></i> Estatísticas <span class="collapse-icon-nav">+</span> </button>
+                    <ul id="stats-main-submenu" class="main-nav-submenu">
+                        <li><button class="submenu-nav-item" id="nav-item-my-stats">Minhas Estatísticas</button></li>
+                        <li><button class="submenu-nav-item" id="nav-item-global-stats">Estatísticas Globais</button></li>
+                    </ul>
                 </li>
                 <li>
                     <button class="main-nav-item" id="nav-item-notebooks">
