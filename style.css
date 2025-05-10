@@ -830,3 +830,91 @@ footer button:hover {
     padding: 20px; /* Padding original */
     /* ... outros estilos da .sidebar ... */
 }
+/* Estilos para submenu na navegação principal da sidebar */
+.collapsible-main-nav-header > .main-nav-item,
+#tab-stats-header.main-nav-item { /* Aplicando ao botão de Estatísticas especificamente também */
+    display: flex;
+    align-items: center; /* Alinha verticalmente todos os itens filhos */
+    /* justify-content: space-between; */ /* REMOVIDO/COMENTADO */
+    width: 100%; /* Garante que o botão ocupe a largura total do li */
+    padding: 12px 15px; /* Mantém o padding padrão dos .main-nav-item */
+    text-align: left; /* Garante que o texto (Estatísticas) se alinhe à esquerda */
+}
+
+.main-nav-submenu {
+    list-style: none;
+    padding-left: 25px; /* Indentação dos sub-itens */
+    margin-top: 0; /* Remove margem superior padrão da ul */
+    overflow: hidden;
+    max-height: 0; /* Começa colapsado */
+    transition: max-height 0.3s ease-out, padding-top 0.3s ease-out, padding-bottom 0.3s ease-out; /* Animação suave */
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.main-nav-submenu.expanded {
+    max-height: 200px; /* Ajuste para a altura máxima dos seus sub-itens */
+    padding-top: 5px;  /* Espaçamento quando expandido */
+    padding-bottom: 5px; /* Espaçamento quando expandido */
+}
+
+.main-nav-submenu li {
+    margin-bottom: 6px;
+}
+.main-nav-submenu li:last-child {
+    margin-bottom: 0;
+}
+
+.submenu-nav-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background-color: transparent; /* Fundo transparente, cor virá do hover/active da aba principal */
+    color: #333; /* Cor do texto similar aos filtros */
+    border: none;
+    border-radius: 4px;
+    text-align: left;
+    font-size: 0.9em;
+    font-weight: normal; /* Subitens não são negrito por padrão */
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.submenu-nav-item:hover {
+    background-color: #e9eff5; /* Leve destaque no hover, similar aos filtros */
+    color: #4A7199;
+}
+
+.collapse-icon-nav {
+    margin-left: auto;          /* <<< ESTA É A MUDANÇA CHAVE para empurrar para a direita */
+    font-weight: bold;
+    font-size: 0.9em;
+    transition: transform 0.2s ease-in-out;
+    flex-shrink: 0;             /* Impede que o ícone encolha se não houver espaço */
+}
+
+/* Quando o botão principal da aba está com submenu expandido */
+.main-nav-item.submenu-expanded .collapse-icon-nav {
+    transform: rotate(45deg); /* Gira o '+' para 'x' ou um V para baixo */
+}
+/* Adicionado para corrigir alinhamento do texto no botão colapsável */
+/* Aplicado ao #tab-stats-header se ele tiver a estrutura com .nav-item-content */
+#tab-stats-header.main-nav-item {
+    /* display: flex; (já herdado de .main-nav-item) */
+    /* align-items: center; (já herdado de .main-nav-item) */
+    justify-content: space-between; /* Mantém a separação entre o conteúdo e o ícone de colapso */
+}
+
+.nav-item-content {
+    display: flex; /* Alinha o ícone da aba e o texto da aba horizontalmente */
+    align-items: center; /* Alinha verticalmente o ícone da aba e o texto */
+    /* flex-grow: 1; */ /* Opcional: se quiser que este grupo ocupe mais espaço */
+}
+
+.nav-item-content > .fas { /* O ícone da aba, como fa-chart-bar */
+    margin-right: 12px; /* Espaço entre o ícone da aba e o texto (igual ao .main-nav-item i) */
+}
+
+.nav-item-content > span { /* O texto, ex: "Estatísticas" */
+    /* Estilos adicionais para o texto se necessário */
+}
