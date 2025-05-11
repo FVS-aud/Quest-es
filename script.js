@@ -752,16 +752,51 @@ async function deleteNotebook(notebookId, notebookName) {
             alert(`Caderno "${notebookName}" excluído com sucesso.`);
             fetchUserNotebooks(); // Atualiza a lista de cadernos
 
-            // Se o caderno excluído estava sendo visualizado, limpe a área de questões
-            if (currentViewingContext.type === 'notebook' && currentViewingContext.id === notebookId) {
-                currentQuestions = [];
-                currentQuestionIndex = 0;
-                if (questionContainer) questionContainer.innerHTML = "<p>O caderno que você estava vendo foi excluído.</p>";
-                updateQuestionNumbers();
-                if (breadcrumb) breadcrumb.textContent = 'Questões > Todas';
-                currentViewingContext = { type: 'general', id: null, name: 'Todas as Questões' };
-                // Opcional: Carregar questões gerais automaticamente
-                // fetchQuestions();
+            if (currentViewingContext.type === 'notebook' && currentViewingContext.id) {
+                const notebookStatsRef = db.collection('userNotebooks').doc(currentViewingContext.id);
+                const notebookUpdate = {}; // Para os incrementos
+                const saneSubject = subject.replace(/\./g, '_');
+
+                // 1. Lê o documento atual do caderno
+                const notebookDoc = await notebookStatsRef.get();
+                const currentNotebookStats = notebookDoc.exists && notebookDoc.data().stats ? notebookDoc.data().stats : {};
+
+                // 2. Define a estrutura base garantida para as estatísticas do caderno
+                const defaultNotebookStatsStructure = {
+                    totalAnswered: currentNotebookStats.totalAnswered || 0,
+                    totalCorrect: currentNotebookStats.totalCorrect || 0,
+                    totalBlank: currentNotebookStats.totalBlank || 0,
+                    subjects: {
+                        ...(currentNotebookStats.subjects || {}),
+                        [saneSubject]: {
+                            total: (currentNotebookStats.subjects && currentNotebookStats.subjects[saneSubject] && currentNotebookStats.subjects[saneSubject].total) || 0,
+                            correct: (currentNotebookStats.subjects && currentNotebookStats.subjects[saneSubject] && currentNotebookStats.subjects[saneSubject].correct) || 0,
+                            blank: (currentNotebookStats.subjects && currentNotebookStats.subjects[saneSubject] && currentNotebookStats.subjects[saneSubject].blank) || 0,
+                        }
+                    }
+                    // Adicione 'topics' aqui se você também rastrear estatísticas de tópicos por caderno
+                };
+
+                // 3. Aplica a estrutura base garantida com merge:true
+                await notebookStatsRef.set({ stats: defaultNotebookStatsStructure }, { merge: true });
+
+                // 4. Define os campos para o incremento
+                notebookUpdate['stats.totalAnswered'] = firebase.firestore.FieldValue.increment(1);
+                notebookUpdate[`stats.subjects.${saneSubject}.total`] = firebase.firestore.FieldValue.increment(1);
+
+                if (status === 'correct') {
+                    notebookUpdate['stats.totalCorrect'] = firebase.firestore.FieldValue.increment(1);
+                    notebookUpdate[`stats.subjects.${saneSubject}.correct`] = firebase.firestore.FieldValue.increment(1);
+                } else if (status === 'blank' || status === 'blank_navigation') {
+                    notebookUpdate['stats.totalBlank'] = firebase.firestore.FieldValue.increment(1);
+                    notebookUpdate[`stats.subjects.${saneSubject}.blank`] = firebase.firestore.FieldValue.increment(1);
+                }
+
+                console.log(`[saveUserAnswer - Caderno] Status: ${status}, Atualizações para o caderno:`, JSON.stringify(notebookUpdate));
+
+                // 5. Aplica os incrementos
+                await notebookStatsRef.update(notebookUpdate);
+                console.log("[saveUserAnswer - Caderno] Estatísticas do caderno atualizadas.");
             }
         } catch (error) {
             console.error("Erro ao excluir caderno:", error);
@@ -1092,21 +1127,24 @@ if(submitAnswerBtn) {
             console.error("Nenhuma questão atual para submeter resposta.");
             return;
         }
-        let isCorrect;
-        let correctAnswerValue = q.correctAnswer; // Para MC, é o índice. Para TF, é true/false.
+        let isCorrectLocal; // Renomeado para evitar conflito com parâmetro antigo
+        let correctAnswerValue = q.correctAnswer;
 
         if (q.type === 'multiple_choice') {
-            isCorrect = (selectedAnswer === correctAnswerValue);
+            isCorrectLocal = (selectedAnswer === correctAnswerValue);
         } else if (q.type === 'true_false') {
             // selectedAnswer é 0 para 'Certo' e 1 para 'Errado'
             // correctAnswerValue é true para 'Certo' e false para 'Errado'
             let selectedActualValue = (selectedAnswer === 0); // true se 'Certo' foi selecionado
-            isCorrect = (selectedActualValue === correctAnswerValue);
+            isCorrectLocal = (selectedActualValue === correctAnswerValue);
         }
 
-        showFeedback(isCorrect, q.correctAnswer, q.justification, q.type, q.options);
-        if(q.id) saveUserAnswer(q.id, selectedAnswer, isCorrect); // selectedAnswer é o índice
-        submitAnswerBtn.disabled = true;
+        const newStatus = isCorrectLocal ? 'correct' : 'incorrect'; // ADICIONADO: determina o status com base na correção
+
+        showFeedback(isCorrectLocal, q.correctAnswer, q.justification, q.type, q.options);
+        if(q.id) saveUserAnswer(q.id, selectedAnswer, newStatus); // MODIFICADO: passa newStatus em vez de isCorrectLocal diretamente
+        submitAnswerBtn.disabled = true; // Desabilita o botão após responder
+
     });
 }
 
@@ -1167,55 +1205,96 @@ function showFeedback(isCorrect, correctAnswer, justification, type, options, is
     });
 }
 
-async function saveUserAnswer(questionId, answerIndex, isCorrect) {
-    // ... (sua função saveUserAnswer, com a lógica para estatísticas de caderno e globais)
-    if (!currentUser || !currentQuestions[currentQuestionIndex]) {
-        console.error("saveUserAnswer: Usuário não logado ou questão atual não definida.");
+async function saveUserAnswer(questionId, answerIndex, status) { // MODIFICADO: o terceiro parâmetro agora é 'status'
+    if (!currentUser || (!currentQuestions.find(q => q.id === questionId) && status !== 'blank_navigation')) { // Ajuste para permitir 'blank_navigation'
+        console.warn("saveUserAnswer: Usuário não logado ou questão atual não definida (e não é blank_navigation).");
         return;
     }
 
-    const questionData = currentQuestions[currentQuestionIndex];
+    // Tenta encontrar a questão no array currentQuestions. Se for 'blank_navigation', pode ser que currentQuestionIndex seja mais relevante.
+    const questionData = currentQuestions.find(q => q.id === questionId) ||
+                         (status === 'blank_navigation' && currentQuestions[currentQuestionIndex] && currentQuestions[currentQuestionIndex].id === questionId ? currentQuestions[currentQuestionIndex] : null);
+
+    if (!questionData) {
+        console.error("saveUserAnswer: Não foi possível obter dados da questão para salvar a resposta.", questionId);
+        return;
+    }
+
     const subject = questionData.subject;
     const topic = questionData.topic;
+    let isCorrectFlag = (status === 'correct'); // Definir isCorrectFlag com base no status
 
     try {
         const answerRef = db.collection('userAnswers').doc(`${currentUser.uid}_${questionId}`);
         const answerDataToSave = {
             userId: currentUser.uid,
             questionId: questionId,
-            selectedAnswer: answerIndex, // Salva o ÍNDICE da alternativa selecionada
-            isCorrect: isCorrect,
+            selectedAnswer: status === 'blank' || status === 'blank_navigation' ? null : answerIndex, // Salva null se for em branco
+            isCorrect: isCorrectFlag, // Usa a flag derivada do status
+            status: status === 'blank_navigation' ? 'blank' : status, // Armazena o status ('correct', 'incorrect', 'blank')
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            subject: subject || "N/A", // Garante que não seja undefined
-            topic: topic || "N/A",     // Garante que não seja undefined
+            subject: subject || "N/A",
+            topic: topic || "N/A",
             answeredInContextType: currentViewingContext.type,
-            answeredInContextId: currentViewingContext.id || null, // << ALTERE ESTA LINHA
+            answeredInContextId: currentViewingContext.id || null,
             answeredInContextName: currentViewingContext.name
         };
         await answerRef.set(answerDataToSave, { merge: true });
-        userAnswersCache[questionId] = answerDataToSave; // Atualiza cache com o que foi salvo
+        userAnswersCache[questionId] = answerDataToSave;
         console.log("Resposta salva no Firestore:", answerDataToSave);
 
-        if (subject) { // Apenas atualiza estatísticas se houver matéria
-            updateUserGlobalStats(isCorrect, subject, topic || "N/A"); // Passa "N/A" se tópico for nulo/vazio
+        if (subject) {
+            // A função updateUserGlobalStats agora também precisa do status
+            updateUserGlobalStats(status, subject, topic || "N/A"); // MODIFICADO: passar status
 
             if (currentViewingContext.type === 'notebook' && currentViewingContext.id) {
                 const notebookStatsRef = db.collection('userNotebooks').doc(currentViewingContext.id);
-                const notebookUpdate = {};
+                const notebookUpdate = {}; // Para os incrementos
                 const saneSubject = subject.replace(/\./g, '_');
 
+                console.log(`[saveUserAnswer - Caderno] Preparando para atualizar estatísticas do caderno. Status: ${status}`);
+
+                // --- PREPARA OS INCREMENTOS para o caderno ---
                 notebookUpdate['stats.totalAnswered'] = firebase.firestore.FieldValue.increment(1);
                 notebookUpdate[`stats.subjects.${saneSubject}.total`] = firebase.firestore.FieldValue.increment(1);
 
-                if (isCorrect) {
+                if (status === 'correct') {
                     notebookUpdate['stats.totalCorrect'] = firebase.firestore.FieldValue.increment(1);
                     notebookUpdate[`stats.subjects.${saneSubject}.correct`] = firebase.firestore.FieldValue.increment(1);
+                } else if (status === 'blank' || status === 'blank_navigation') {
+                    notebookUpdate['stats.totalBlank'] = firebase.firestore.FieldValue.increment(1);
+                    notebookUpdate[`stats.subjects.${saneSubject}.blank`] = firebase.firestore.FieldValue.increment(1);
                 }
-                
-                // Garante a estrutura antes de incrementar
-                await notebookStatsRef.set({ stats: { subjects: { [saneSubject]: { total: 0, correct: 0} } } }, { merge: true });
-                await notebookStatsRef.update(notebookUpdate);
-                console.log("Estatísticas do caderno atualizadas.");
+                console.log(`[saveUserAnswer - Caderno] Campos para ATUALIZAR (incrementar) no caderno:`, JSON.stringify(notebookUpdate));
+
+                try {
+                    await db.runTransaction(async (transaction) => {
+                        const notebookDoc = await transaction.get(notebookStatsRef);
+                        let stats = {};
+
+                        if (notebookDoc.exists && notebookDoc.data().stats) {
+                            stats = notebookDoc.data().stats;
+                        }
+
+                        // Garante estrutura base para estatísticas do caderno
+                        stats.totalAnswered = stats.totalAnswered || 0;
+                        stats.totalCorrect = stats.totalCorrect || 0;
+                        stats.totalBlank = stats.totalBlank || 0;
+
+                        stats.subjects = stats.subjects || {};
+                        stats.subjects[saneSubject] = stats.subjects[saneSubject] || {};
+                        stats.subjects[saneSubject].total = stats.subjects[saneSubject].total || 0;
+                        stats.subjects[saneSubject].correct = stats.subjects[saneSubject].correct || 0;
+                        stats.subjects[saneSubject].blank = stats.subjects[saneSubject].blank || 0;
+                        // Adicione 'topics' aqui se você rastreia no nível do caderno
+
+                        transaction.set(notebookStatsRef, { stats: stats }, { merge: true });
+                        transaction.update(notebookStatsRef, notebookUpdate);
+                    });
+                    console.log("[saveUserAnswer - Caderno] Estatísticas do caderno (transação) atualizadas com sucesso.");
+                } catch (error) {
+                    console.error("[saveUserAnswer - Caderno] ERRO na TRANSAÇÃO ao atualizar estatísticas do caderno: ", error);
+                }
             }
         } else {
             console.warn("Não foi possível atualizar estatísticas pois a matéria da questão não está definida.");
@@ -1226,10 +1305,15 @@ async function saveUserAnswer(questionId, answerIndex, isCorrect) {
     }
 }
 
-
 // --- NAVEGAÇÃO ENTRE QUESTÕES ---
 if(prevQBtn) {
     prevQBtn.addEventListener('click', () => {
+        const currentQuestionForNavPrev = currentQuestions[currentQuestionIndex];
+        if (currentQuestionForNavPrev && currentQuestionForNavPrev.id && !userAnswersCache[currentQuestionForNavPrev.id] && (submitAnswerBtn ? !submitAnswerBtn.disabled : true)) {
+            console.log(`Questão ${currentQuestionForNavPrev.id} deixada em branco (navegação para anterior).`);
+            saveUserAnswer(currentQuestionForNavPrev.id, null, 'blank_navigation');
+            // if(submitAnswerBtn) submitAnswerBtn.disabled = true; // Opcional
+        }
         if (currentQuestionIndex > 0) {
             currentQuestionIndex--;
             displayQuestion(currentQuestionIndex);
@@ -1238,6 +1322,17 @@ if(prevQBtn) {
 }
 if(nextQBtn) {
     nextQBtn.addEventListener('click', () => {
+        const currentQuestionForNav = currentQuestions[currentQuestionIndex];
+        // Verifica se a questão atual existe, tem um ID, ainda não foi respondida (não está no cache),
+        // e o botão de submeter não está desabilitado (ou seja, o feedback ainda não foi mostrado para ela)
+        if (currentQuestionForNav && currentQuestionForNav.id && !userAnswersCache[currentQuestionForNav.id] && (submitAnswerBtn ? !submitAnswerBtn.disabled : true) ) {
+            console.log(`Questão ${currentQuestionForNav.id} deixada em branco (navegação para próxima).`);
+            // Chama saveUserAnswer com status 'blank_navigation'. Este status será normalizado para 'blank' dentro de saveUserAnswer.
+            // O 'answerIndex' é null pois não houve seleção.
+            saveUserAnswer(currentQuestionForNav.id, null, 'blank_navigation');
+            // Opcional: desabilitar o botão de submissão para a questão que foi marcada como em branco
+            // if(submitAnswerBtn) submitAnswerBtn.disabled = true;
+        }
         if (currentQuestionIndex < currentQuestions.length - 1) {
             currentQuestionIndex++;
             displayQuestion(currentQuestionIndex);
@@ -1603,47 +1698,85 @@ if(showAddQuestionBtn) showAddQuestionBtn.addEventListener('click', () => { /* .
 if(addQType) addQType.addEventListener('change', function() { /* ... */ });
 if(submitNewQuestionBtn) submitNewQuestionBtn.addEventListener('click', async () => { /* ... */ });
 
+async function updateUserGlobalStats(status, subject, topic) {
+    if (!currentUser || !subject || !topic) {
+        console.warn("updateUserGlobalStats: Parâmetros inválidos ou usuário não logado.", { currentUser, subject, topic });
+        return;
+    }
 
-// --- ESTATÍSTICAS ---
-// (Suas funções de estatísticas: showStatsView, populateStatsFilters, displayUserPerformance, displayGlobalComparisonPerformance, getAggregatedStatsForQuestions, showGlobalPlatformStatsView)
-// Cole suas funções de estatísticas aqui, garantindo que estejam completas.
-// Exemplo:
-async function updateUserGlobalStats(isCorrect, subject, topic) {
-    if (!currentUser || !subject || !topic) return;
-    // ... (seu código existente de updateUserStats, mas agora chamado updateUserGlobalStats)
-    // Certifique-se que ele atualiza `users/{userId}/stats`
     const userStatsRef = db.collection('users').doc(currentUser.uid);
     const increment = firebase.firestore.FieldValue.increment(1);
-    const fieldsToUpdate = {};
+    const fieldsToUpdate = {}; // Objeto para os incrementos
 
-    fieldsToUpdate[`stats.totalAnswered`] = increment;
-    if (isCorrect) {
-        fieldsToUpdate[`stats.totalCorrect`] = increment;
-    }
+    console.log(`[updateUserGlobalStats] Recebido - Status: ${status}, Matéria: ${subject}, Tópico: ${topic}`);
 
     const saneSubject = subject.replace(/\./g, '_');
     const saneTopic = topic.replace(/\./g, '_');
 
+    // --- PREPARA OS INCREMENTOS ---
+    fieldsToUpdate[`stats.totalAnswered`] = increment;
     fieldsToUpdate[`stats.subjects.${saneSubject}.total`] = increment;
-    if (isCorrect) {
+    fieldsToUpdate[`stats.topics.${saneSubject}.${saneTopic}.total`] = increment;
+
+    if (status === 'correct') {
+        fieldsToUpdate[`stats.totalCorrect`] = increment;
         fieldsToUpdate[`stats.subjects.${saneSubject}.correct`] = increment;
+        fieldsToUpdate[`stats.topics.${saneSubject}.${saneTopic}.correct`] = increment;
+    } else if (status === 'blank') {
+        fieldsToUpdate[`stats.totalBlank`] = increment;
+        fieldsToUpdate[`stats.subjects.${saneSubject}.blank`] = increment;
+        fieldsToUpdate[`stats.topics.${saneSubject}.${saneTopic}.blank`] = increment;
     }
 
-    fieldsToUpdate[`stats.topics.${saneSubject}.${saneTopic}.total`] = increment;
-    if (isCorrect) {
-        fieldsToUpdate[`stats.topics.${saneSubject}.${saneTopic}.correct`] = increment;
-    }
-    // ... (resto da lógica de updateUserStats)
-     try {
-        await userStatsRef.set({ stats: { subjects: {}, topics: {} } }, { merge: true });
-        let initialTopicStructure = {};
-        initialTopicStructure[`stats.topics.${saneSubject}`] = {};
-        await userStatsRef.set(initialTopicStructure, { merge: true });
-        await userStatsRef.update(fieldsToUpdate);
-        console.log("Estatísticas GLOBAIS do usuário atualizadas:", saneSubject, saneTopic);
-        userStatsData = null; // Força recarregar na próxima visualização de estatísticas gerais
+    console.log("[updateUserGlobalStats] Campos para ATUALIZAR (incrementar):", JSON.stringify(fieldsToUpdate));
+
+    try {
+        // --- TRANSAÇÃO PARA LER, GARANTIR E ATUALIZAR ---
+        await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userStatsRef);
+            let stats = {}; // Objeto stats padrão/inicial
+
+            if (userDoc.exists && userDoc.data().stats) {
+                stats = userDoc.data().stats; // Pega stats existentes
+            }
+
+            // Garante que os campos numéricos de primeiro nível existem em 'stats'
+            // Se não existirem, serão inicializados com 0 ANTES do incremento ser aplicado pelo 'update'
+            // Esta inicialização manual é feita porque FieldValue.increment(1) em um campo não existente
+            // o define como 1, mas não queremos depender disso para a *existência* inicial dos campos
+            // que displayUserPerformance espera.
+            stats.totalAnswered = stats.totalAnswered || 0;
+            stats.totalCorrect = stats.totalCorrect || 0;
+            stats.totalBlank = stats.totalBlank || 0;
+
+            // Garante a estrutura para subjects
+            stats.subjects = stats.subjects || {};
+            stats.subjects[saneSubject] = stats.subjects[saneSubject] || {};
+            stats.subjects[saneSubject].total = stats.subjects[saneSubject].total || 0;
+            stats.subjects[saneSubject].correct = stats.subjects[saneSubject].correct || 0;
+            stats.subjects[saneSubject].blank = stats.subjects[saneSubject].blank || 0;
+
+            // Garante a estrutura para topics
+            stats.topics = stats.topics || {};
+            stats.topics[saneSubject] = stats.topics[saneSubject] || {};
+            stats.topics[saneSubject][saneTopic] = stats.topics[saneSubject][saneTopic] || {};
+            stats.topics[saneSubject][saneTopic].total = stats.topics[saneSubject][saneTopic].total || 0;
+            stats.topics[saneSubject][saneTopic].correct = stats.topics[saneSubject][saneTopic].correct || 0;
+            stats.topics[saneSubject][saneTopic].blank = stats.topics[saneSubject][saneTopic].blank || 0;
+
+            // Primeiro, garante que a estrutura base exista com .set e merge
+            // Isso é importante se o objeto 'stats' ou sub-objetos não existirem de todo.
+            transaction.set(userStatsRef, { stats: stats }, { merge: true });
+
+            // Em seguida, aplica os incrementos específicos.
+            // O Firestore lida com a criação do campo com o valor do incremento se o caminho exato não existir.
+            transaction.update(userStatsRef, fieldsToUpdate);
+        });
+
+        console.log(`Estatísticas GLOBAIS do usuário (transação) atualizadas para status '${status}': ${saneSubject}, ${saneTopic}`);
+        userStatsData = null; // Força recarregar na próxima visualização
     } catch (error) {
-        console.error("Erro Crítico ao atualizar estatísticas GLOBAIS do usuário: ", error);
+        console.error(`Erro Crítico na TRANSAÇÃO ao atualizar estatísticas GLOBAIS (status: ${status}) do usuário: `, error);
     }
 }
 
@@ -1673,26 +1806,117 @@ async function showStatsView(contextIdentifier = 'user_general') { // 'user_gene
     if (contextIdentifier.startsWith('notebook_')) {
         const notebookId = contextIdentifier.split('_')[1];
         const notebook = userNotebooks.find(nb => nb.id === notebookId);
-        if (notebook && notebook.stats) {
-            statsDataSource = notebook.stats;
-            contextName = `Caderno: ${notebook.notebookName}`;
-            // PARA COMPARAÇÃO GLOBAL DO CADERNO (complexo, precisa de agregação)
-            // comparisonData = await getGlobalStatsForNotebook(notebook.questionIds); // Função a ser criada
-            if (userStatsFiltersEl) userStatsFiltersEl.classList.remove('hidden'); // Mostrar filtros de matéria/assunto dentro do caderno
-        } else {
-            statsView.querySelector('#general-stats').innerHTML = "<p>Estatísticas do caderno não encontradas.</p>";
-            return;
+        // ... (lógica para statsDataSource e contextName) ...
+
+        // Obter dados de comparação (outros usuários) para o caderno
+        const qIds = notebook ? (notebook.questionIds || []) : [];
+        comparisonData = await getAggregatedStatsForQuestions(qIds, currentUser.uid); // Dados dos outros usuários
+
+        if (userStatsFiltersEl) userStatsFiltersEl.classList.remove('hidden'); // Mostra filtros de matéria/assunto DENTRO do caderno
+
+        // Popula filtros de matéria/assunto com base no statsDataSource DO USUÁRIO para este caderno
+        populateStatsFilters(statsDataSource, statsSubjectFilter, statsTopicFilter);
+        // Exibe estatísticas DO USUÁRIO filtradas (ou todas se nenhum filtro aplicado)
+        displayUserPerformance(statsDataSource, "", "");
+
+        if (applyUserStatsFilterBtn) {
+            applyUserStatsFilterBtn.onclick = () => {
+                displayUserPerformance(statsDataSource, statsSubjectFilter.value, statsTopicFilter.value);
+                // Atualizar também o gráfico de comparação global e o indicador de dificuldade se os filtros mudarem
+                if (comparisonData) {
+                    displayGlobalComparisonPerformance(comparisonData, statsSubjectFilter.value, statsTopicFilter.value); // Passa filtros atuais
+                    // Recalcular e exibir dificuldade com base nos filtros aplicados se necessário,
+                    // ou manter a dificuldade geral do caderno. Por simplicidade, vamos manter a geral.
+                }
+            };
         }
-    } else { // 'user_general'
-        const userDoc = await db.collection('users').doc(currentUser.uid).get();
-        if (userDoc.exists && userDoc.data().stats) {
-            statsDataSource = userDoc.data().stats;
-            userStatsData = statsDataSource; // Cache
-        } else {
-            statsView.querySelector('#general-stats').innerHTML = "<p>Nenhuma estatística pessoal disponível.</p>";
-            return;
+        
+        if (globalPerformanceTitleEl && comparisonData) { // Ajusta título do gráfico de comparação
+             globalPerformanceTitleEl.textContent = `Média Demais Usuários (${notebook.notebookName || 'Caderno'})`;
         }
-        if (userStatsFiltersEl) userStatsFiltersEl.classList.remove('hidden'); // Mostrar filtros para geral
+
+
+        // >>> ADICIONE/MODIFIQUE ESTA SEÇÃO PARA O INDICADOR DE DIFICULDADE <<<
+        const difficultyContainerEl = document.getElementById('notebook-difficulty-indicator-container');
+        const difficultyTextEl = document.getElementById('notebook-difficulty-text');
+
+        if (comparisonData && difficultyContainerEl && difficultyTextEl) {
+            // comparisonData.totalCorrect é o total de acertos dos OUTROS usuários no caderno
+            // comparisonData.totalAnswered é o total de respostas (corretas+incorretas+em branco) dos OUTROS usuários no caderno
+            const communityCorrect = comparisonData.totalCorrect || 0;
+            const communityTotalAttempted = comparisonData.totalAnswered || 0;
+
+            let difficultyLevelText = 'Dados Insuficientes'; // Padrão
+            let difficultyClass = 'difficulty-unknown';  // Padrão
+
+            // Só calcula a dificuldade se houver um número mínimo de tentativas da comunidade (ex: 5)
+            // Isso evita classificações baseadas em pouquíssimas respostas.
+            if (communityTotalAttempted >= 1) { // Ajuste este limite conforme necessário (ex: 5, 10)
+                const communityCorrectPercentage = (communityCorrect / communityTotalAttempted) * 100;
+
+                if (communityCorrectPercentage > 75) {
+                    difficultyLevelText = 'Fácil';
+                    difficultyClass = 'difficulty-facil';
+                } else if (communityCorrectPercentage >= 50) { // 50–75%
+                    difficultyLevelText = 'Médio';
+                    difficultyClass = 'difficulty-medio';
+                } else if (communityCorrectPercentage >= 25) { // 25–49%
+                    difficultyLevelText = 'Difícil';
+                    difficultyClass = 'difficulty-dificil';
+                } else { // < 25%
+                    difficultyLevelText = 'Muito Difícil';
+                    difficultyClass = 'difficulty-muito-dificil';
+                }
+            }
+
+            difficultyTextEl.textContent = difficultyLevelText;
+            difficultyTextEl.className = ''; // Limpa classes anteriores de dificuldade
+            difficultyTextEl.classList.add(difficultyClass); // Adiciona a nova classe de dificuldade
+            difficultyContainerEl.classList.remove('hidden'); // Mostra o contêiner do indicador
+        } else if (difficultyContainerEl) {
+            difficultyContainerEl.classList.add('hidden'); // Esconde se não há dados ou elementos
+        }
+        // >>> FIM DA SEÇÃO DO INDICADOR DE DIFICULDADE <<<
+
+        // Exibe o gráfico de desempenho global (outros usuários)
+        if (comparisonData) {
+            statsComparisonContainerEl.classList.remove('hidden'); // Mostra o container de comparação global
+            displayGlobalComparisonPerformance(comparisonData, statsSubjectFilter.value, statsTopicFilter.value);
+        } else {
+             const globalCompareCanvas = document.getElementById('globalCompareChart');
+             if (globalCompareCanvas) {
+                const context = globalCompareCanvas.getContext('2d');
+                if (globalCompareChartInstance) globalCompareChartInstance.destroy();
+                context.clearRect(0, 0, globalCompareCanvas.width, globalCompareCanvas.height);
+             }
+             // Poderia adicionar uma mensagem de "dados de comparação indisponíveis"
+             if (statsComparisonContainerEl) statsComparisonContainerEl.classList.add('hidden'); // Esconde se não há dados
+        }
+
+
+    } else { // Se o contexto NÃO é um caderno (ex: 'user_general' ou 'platform_global')
+        // Esconder o indicador de dificuldade do caderno
+        const difficultyContainerEl = document.getElementById('notebook-difficulty-indicator-container');
+        if (difficultyContainerEl) {
+            difficultyContainerEl.classList.add('hidden');
+        }
+        // ... (resto da lógica para 'user_general')
+        if (userStatsFiltersEl) userStatsFiltersEl.classList.remove('hidden'); // Mostrar filtros para estatísticas gerais do usuário
+
+        // Lógica para buscar dados de comparação globais da plataforma se necessário
+        const globalSummaryDoc = await db.collection('globalPlatformStats').doc('summary').get();
+        if (globalSummaryDoc.exists) {
+            comparisonData = globalSummaryDoc.data();
+        }
+        if (globalPerformanceTitleEl) globalPerformanceTitleEl.textContent = `Média Demais Usuários (Plataforma)`;
+
+
+        if (comparisonData) {
+            statsComparisonContainerEl.classList.remove('hidden');
+            displayGlobalComparisonPerformance(comparisonData, statsSubjectFilter.value, statsTopicFilter.value);
+        } else {
+            if (statsComparisonContainerEl) statsComparisonContainerEl.classList.add('hidden');
+        }
     }
 
     if (statsTitleEl) statsTitleEl.textContent = `Desempenho: ${contextName}`;
@@ -1788,18 +2012,25 @@ function populateStatsFilters(statsSource, subjectFilterEl, topicFilterEl) {
     };
 }
 
-
 // Exibe o desempenho DO USUÁRIO LOGADO (gráfico geral + lista por matéria/assunto)
 function displayUserPerformance(statsData, subjectFilterKey, topicFilterKey) {
     if (!statsData) {
-        document.getElementById('geralChart').getContext('2d').clearRect(0,0,300,150); // Limpa o canvas
-        document.getElementById('subject-performance').innerHTML = "<p>Dados de desempenho do usuário indisponíveis.</p>";
+        // Limpa o canvas e a área de texto se não houver dados
+        const geralCtx = document.getElementById('geralChart');
+        if (geralCtx) {
+            const context = geralCtx.getContext('2d');
+            if (geralChartInstance) geralChartInstance.destroy(); // Destroi instância anterior
+            context.clearRect(0, 0, geralCtx.width, geralCtx.height); // Limpa o canvas
+        }
+        const subjectPerfEl = document.getElementById('subject-performance');
+        if (subjectPerfEl) subjectPerfEl.innerHTML = "<p>Dados de desempenho do usuário indisponíveis.</p>";
         return;
     }
 
     let filteredCorrect = 0;
-    let filteredTotal = 0;
-    let chartLabel = currentViewingContext.name || "Meu Desempenho";
+    let filteredTotalAttempted = 0; // Renomeado de filteredTotal para clareza (corretas + incorretas + em branco)
+    let filteredBlank = 0;          // NOVO: contador para respostas em branco
+    let chartLabel = (currentViewingContext && currentViewingContext.name) || "Meu Desempenho";
     const subjectPerformanceEl = document.getElementById('subject-performance');
     let performanceHTML = '';
 
@@ -1808,37 +2039,50 @@ function displayUserPerformance(statsData, subjectFilterKey, topicFilterKey) {
         // Se houver filtro de TÓPICO e os dados de tópico existirem:
         if (topicFilterKey && statsData.topics && statsData.topics[subjectFilterKey] && statsData.topics[subjectFilterKey][topicFilterKey]) {
             const topStats = statsData.topics[subjectFilterKey][topicFilterKey];
-            filteredTotal = topStats.total || 0;
+            filteredTotalAttempted = topStats.total || 0;
             filteredCorrect = topStats.correct || 0;
+            filteredBlank = topStats.blank || 0; // Busca contagem de "em branco" para o tópico
             chartLabel = `${subjectFilterKey.replace(/_/g, '.')} > ${topicFilterKey.replace(/_/g, '.')}`;
-            performanceHTML = `<h4>${chartLabel}:</h4><p>${((filteredCorrect / filteredTotal) * 100 || 0).toFixed(1)}% de acerto (${filteredCorrect}/${filteredTotal})</p>`;
+            const responded = filteredTotalAttempted - filteredBlank; // Quantas foram de fato respondidas (não em branco)
+            const successRate = responded > 0 ? (filteredCorrect / responded) * 100 : 0;
+            performanceHTML = `<h4>${chartLabel}:</h4><p>${successRate.toFixed(1)}% de acerto (${filteredCorrect}/${responded} respondidas). ${filteredBlank} em branco de ${filteredTotalAttempted} vistas.</p>`;
         } else { // Apenas filtro de MATÉRIA
-            filteredTotal = subjStats.total || 0;
+            filteredTotalAttempted = subjStats.total || 0;
             filteredCorrect = subjStats.correct || 0;
+            filteredBlank = subjStats.blank || 0; // Busca contagem de "em branco" para a matéria
             chartLabel = `${subjectFilterKey.replace(/_/g, '.')}`;
-            performanceHTML = `<h4>${chartLabel} (Geral da Matéria):</h4><p>${((filteredCorrect / filteredTotal) * 100 || 0).toFixed(1)}% de acerto (${filteredCorrect}/${filteredTotal})</p>`;
-            // Listar tópicos DENTRO da matéria, se existirem em statsData.topics
+            const responded = filteredTotalAttempted - filteredBlank;
+            const successRate = responded > 0 ? (filteredCorrect / responded) * 100 : 0;
+            performanceHTML = `<h4>${chartLabel} (Geral da Matéria):</h4><p>${successRate.toFixed(1)}% de acerto (${filteredCorrect}/${responded} respondidas). ${filteredBlank} em branco de ${filteredTotalAttempted} vistas.</p>`;
+            // Listar tópicos DENTRO da matéria
             if (statsData.topics && statsData.topics[subjectFilterKey]) {
                 performanceHTML += `<ul>`;
                 Object.keys(statsData.topics[subjectFilterKey]).sort().forEach(topicKey => {
                     const tStats = statsData.topics[subjectFilterKey][topicKey];
                     const tTotal = tStats.total || 0;
                     const tCorrect = tStats.correct || 0;
-                    performanceHTML += `<li>${topicKey.replace(/_/g,'.')}: ${((tCorrect / tTotal) * 100 || 0).toFixed(1)}% (${tCorrect}/${tTotal})</li>`;
+                    const tBlank = tStats.blank || 0;
+                    const tResponded = tTotal - tBlank;
+                    const tSuccessRate = tResponded > 0 ? (tCorrect / tResponded) * 100 : 0;
+                    performanceHTML += `<li>${topicKey.replace(/_/g,'.')}: ${tSuccessRate.toFixed(1)}% (${tCorrect}/${tResponded} resp.). ${tBlank} em branco de ${tTotal} vistas.</li>`;
                 });
                 performanceHTML += `</ul>`;
             }
         }
     } else { // Sem filtro de matéria/assunto (Desempenho Geral no contexto atual)
-        filteredTotal = statsData.totalAnswered || 0;
+        filteredTotalAttempted = statsData.totalAnswered || 0;
         filteredCorrect = statsData.totalCorrect || 0;
+        filteredBlank = statsData.totalBlank || 0; // Busca contagem global de "em branco"
         performanceHTML = '<h4>Desempenho Geral por Matéria (neste contexto):</h4><ul>';
         if (statsData.subjects && Object.keys(statsData.subjects).length > 0) {
             Object.keys(statsData.subjects).sort().forEach(sKey => {
                 const sData = statsData.subjects[sKey];
                 const sTotal = sData.total || 0;
                 const sCorrect = sData.correct || 0;
-                performanceHTML += `<li>${sKey.replace(/_/g,'.')}: ${((sCorrect/sTotal)*100 || 0).toFixed(1)}% (${sCorrect}/${sTotal})</li>`;
+                const sBlank = sData.blank || 0;
+                const sResponded = sTotal - sBlank;
+                const sSuccessRate = sResponded > 0 ? (sCorrect / sResponded) * 100 : 0;
+                performanceHTML += `<li>${sKey.replace(/_/g,'.')}: ${sSuccessRate.toFixed(1)}% (${sCorrect}/${sResponded} resp.). ${sBlank} em branco de ${sTotal} vistas.</li>`;
             });
         } else {
             performanceHTML += '<li>Nenhum dado por matéria.</li>';
@@ -1848,24 +2092,68 @@ function displayUserPerformance(statsData, subjectFilterKey, topicFilterKey) {
 
     if (subjectPerformanceEl) subjectPerformanceEl.innerHTML = performanceHTML;
 
-    if (geralChartInstance) geralChartInstance.destroy();
+    if (geralChartInstance) {
+        geralChartInstance.destroy(); // Destrói a instância anterior do gráfico para evitar sobreposições
+    }
     const ctxGeral = document.getElementById('geralChart').getContext('2d');
-    const filteredIncorrect = filteredTotal - filteredCorrect;
+
+    // Calcula o número de respostas incorretas
+    // Total "respondidas" (não em branco) = Total de Tentativas - Em Branco
+    const nonBlankAttempts = filteredTotalAttempted - filteredBlank;
+    // Incorretas = Total Respondidas - Corretas
+    const filteredIncorrect = nonBlankAttempts - filteredCorrect;
+
     geralChartInstance = new Chart(ctxGeral, {
         type: 'doughnut',
         data: {
-            labels: ['Acertos', 'Erros'],
+            labels: ['Acertos', 'Erros', 'Em Branco'], // MODIFICADO: adiciona "Em Branco"
             datasets: [{
                 label: chartLabel,
-                data: [filteredCorrect, filteredIncorrect < 0 ? 0 : filteredIncorrect],
-                backgroundColor: ['#28a745', '#dc3545'],
+                data: [
+                    filteredCorrect,
+                    filteredIncorrect < 0 ? 0 : filteredIncorrect, // Garante que não seja negativo
+                    filteredBlank // NOVO: dados para "Em Branco"
+                ],
+                backgroundColor: [
+                    '#28a745', // Cor para Acertos (verde)
+                    '#dc3545', // Cor para Erros (vermelho)
+                    '#ffc107'  // Cor para Em Branco (amarelo/laranja) ou '#6c757d' (cinza)
+                ],
+                borderColor: [ // Adiciona bordas para melhor visualização
+                    '#ffffff',
+                    '#ffffff',
+                    '#ffffff'
+                ],
+                borderWidth: 2
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'top' },
-                title: { display: true, text: `${chartLabel} (${((filteredCorrect / filteredTotal) * 100 || 0).toFixed(1)}% acerto)` }
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    // O título do gráfico agora reflete a porcentagem de acerto sobre as questões efetivamente respondidas
+                    text: `${chartLabel} (${(nonBlankAttempts > 0 ? (filteredCorrect / nonBlankAttempts) * 100 : 0).toFixed(1)}% acerto de respondidas)`
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            const value = context.raw;
+                            const totalSum = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            const percentage = totalSum > 0 ? (value / totalSum * 100).toFixed(1) + '%' : '0%';
+                            label += `${value} (${percentage})`;
+                            return label;
+                        }
+                    }
+                }
             }
         }
     });
@@ -1978,6 +2266,10 @@ async function getAggregatedStatsForQuestions(questionIdsArray, excludeUserId) {
 
 // Estatísticas GLOBAIS DA PLATAFORMA (o botão no header)
 async function showGlobalPlatformStatsView() {
+        const difficultyContainerForGlobal = document.getElementById('notebook-difficulty-indicator-container');
+    if (difficultyContainerForGlobal) {
+        difficultyContainerForGlobal.classList.add('hidden');
+    }
     questionView.classList.add('hidden');
     addQuestionView.classList.add('hidden');
     forumView.classList.add('hidden');
@@ -2134,11 +2426,55 @@ function setupMainNavCollapsibles() {
         globalStatsSubmenuBtn.addEventListener('click', () => {
             if (!currentUser) { alert("Por favor, faça login."); return; }
             console.log("Botão Estatísticas Globais (submenu) CLICADO!");
-            const statsHeaderButton = document.getElementById('tab-stats-header'); // Botão principal da aba
-            showMainContentView(contentViews[statsHeaderButton.id]);
-            setActiveTab(statsHeaderButton);
-            showGlobalPlatformStatsView();
-            closeOtherSubmenus('stats-main-submenu', headers); // Passa a lista de headers
+
+            const statsHeaderButton = document.getElementById('tab-stats-header'); // Botão da aba principal "Estatísticas"
+            const statsViewToShow = contentViews[statsHeaderButton.id]; // A div principal de estatísticas
+
+            showMainContentView(statsViewToShow); // Mostra a view principal de estatísticas
+            setActiveTab(statsHeaderButton);      // Define a aba "Estatísticas" como ativa
+
+            // Esconde o seletor de contexto de estatísticas, pois estamos definindo o contexto programaticamente
+            if (statsContextTypeSelect && statsContextTypeSelect.parentElement) { // Verifica se o seletor e seu pai existem
+                 statsContextTypeSelect.parentElement.classList.add('hidden'); // Esconde o seletor e seu label/container
+            }
+
+
+            if (currentViewingContext && currentViewingContext.type === 'notebook' && currentViewingContext.id) {
+                // Se um caderno está ativo no contexto de visualização de questões
+                console.log(`Exibindo estatísticas globais para o caderno: ${currentViewingContext.name}`);
+                
+                // Chama showStatsView para o caderno. Esta função já lida com:
+                // 1. Desempenho do usuário NO CADERNO.
+                // 2. Comparação com outros usuários NO CADERNO.
+                // 3. Indicador de dificuldade do CADERNO.
+                showStatsView(`notebook_${currentViewingContext.id}`);
+                
+                // Como o foco é "Estatísticas GLOBAIS do Caderno", vamos esconder as partes de "Minhas Estatísticas"
+                // que showStatsView normalmente exibe para um caderno.
+                const userPerfTitle = document.getElementById('user-performance-title');
+                const geralChartCanvas = document.getElementById('geralChart'); // Gráfico de desempenho individual
+                const subjectPerfDiv = document.getElementById('subject-performance'); // Lista de desempenho por matéria/assunto individual
+                const userStatsFiltersDiv = document.getElementById('user-stats-filters'); // Filtros para desempenho individual
+
+                if(userPerfTitle) userPerfTitle.classList.add('hidden');
+                if(geralChartCanvas && geralChartCanvas.parentElement) geralChartCanvas.parentElement.classList.add('hidden'); // Esconde o container do gráfico
+                if(subjectPerfDiv) subjectPerfDiv.classList.add('hidden');
+                if(userStatsFiltersDiv) userStatsFiltersDiv.classList.add('hidden');
+
+                // Ajustar o título principal da página de estatísticas
+                const statsMainTitleEl = statsViewEl.querySelector('h2'); // statsViewEl é a div principal de estatísticas
+                 if(statsMainTitleEl) statsMainTitleEl.textContent = `Estatísticas Globais: Caderno "${currentViewingContext.name}"`;
+
+
+            } else {
+                // Nenhum caderno ativo, mostrar estatísticas globais da plataforma
+                // Garantir que o seletor de contexto seja mostrado se aplicável para a visão de plataforma
+                if (statsContextTypeSelect && statsContextTypeSelect.parentElement) {
+                     // statsContextTypeSelect.parentElement.classList.remove('hidden'); // Decida se quer mostrar para a global
+                }
+                showGlobalPlatformStatsView(); // Esta função já lida com o título e esconde o indicador de dificuldade do caderno
+            }
+            // closeOtherSubmenus('stats-main-submenu', headers); // 'headers' precisaria ser passado ou definido no escopo
         });
     }
 }
